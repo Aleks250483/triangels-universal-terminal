@@ -370,49 +370,34 @@ print_summary() {
 }
 
 auto_apply_and_reload_shell() {
-  # 1) Try to source rc file for current running shell
+  # ВАЖНО:
+  # Скрипт обычно запускают как: curl ... | bash
+  # Значит он выполняется в bash, и НЕЛЬЗЯ source ~/.zshrc из bash.
+
+  log ""
+  ok "Apply now (copy one line):"
+
   if [[ -n "${ZSH_VERSION:-}" ]]; then
-    [[ -f "${HOME}/.zshrc" ]] && source "${HOME}/.zshrc" 2>/dev/null || true
-  elif [[ -n "${BASH_VERSION:-}" ]]; then
-    [[ -f "${HOME}/.bashrc" ]] && source "${HOME}/.bashrc" 2>/dev/null || true
+    # Если скрипт реально выполняется в zsh — можно source .zshrc
+    echo "source ~/.zshrc"
+    [[ -f "$ZSHRC" ]] && source "$ZSHRC" 2>/dev/null || true
+    return 0
   fi
 
-  # 2) Re-exec the user's login shell so prompt updates immediately (WOW-effect)
-  local login_shell
-  login_shell="$(basename "${SHELL:-}")"
+  if [[ -n "${BASH_VERSION:-}" ]]; then
+    # Скрипт выполняется в bash — source только bashrc
+    if [[ -f "$BASHRC" ]]; then
+      echo "source ~/.bashrc"
+      source "$BASHRC" 2>/dev/null || true
+    else
+      # bashrc нет — не трогаем zshrc, просто даём правильную команду
+      echo "exec \$SHELL -l"
+    fi
+    return 0
+  fi
 
-  case "$login_shell" in
-    zsh)
-      exec zsh -l
-      ;;
-    bash)
-      exec bash -l
-      ;;
-    *)
-      # fallback: try zsh then bash
-      command -v zsh >/dev/null 2>&1 && exec zsh -l
-      command -v bash >/dev/null 2>&1 && exec bash -l
-      ;;
-  esac
-}
-
-auto_apply_and_reload_shell() {
-
-  info "Applying TriAngels terminal now..."
-
-  local shell_name
-  shell_name="$(basename "$SHELL")"
-
-  case "$shell_name" in
-    zsh)
-      [[ -f "$ZSHRC" ]] && source "$ZSHRC" || true
-      ;;
-    bash)
-      [[ -f "$BASHRC" ]] && source "$BASHRC" || true
-      ;;
-  esac
-
-  ok "TriAngels Terminal activated ✔"
+  # На всякий случай
+  echo "exec \$SHELL -l"
 }
 
 main() {

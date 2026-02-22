@@ -373,12 +373,8 @@ auto_apply_and_reload_shell() {
 
   info "Applying TriAngels terminal now..."
 
-  # Detect real login shell from passwd
-  real_shell="$(dscl . -read /Users/$USER UserShell 2>/dev/null | awk '{print $2}')"
-
-  if [[ -z "$real_shell" ]]; then
-      real_shell="${SHELL:-/bin/zsh}"
-  fi
+ # Use current login shell safely
+real_shell="${SHELL:-/bin/zsh}"
 
   case "$(basename "$real_shell")" in
       zsh)

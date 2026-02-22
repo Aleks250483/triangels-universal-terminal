@@ -59,8 +59,11 @@ Docker-индикатор 🐳
 
 **macOS / Linux / NAS / VPS**
 
+## ⚡ One-Command Install
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<USER>/<REPO>/main/setup-triangels-universal.sh -o setup-triangels-universal.sh
+curl -fsSL https://raw.githubusercontent.com/Aleks250483/triangels-universal-terminal/main/setup-triangels-universal.sh | bash
+```
 chmod +x setup-triangels-universal.sh
 ./setup-triangels-universal.sh
 

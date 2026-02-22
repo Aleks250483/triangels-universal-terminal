@@ -370,34 +370,27 @@ print_summary() {
 }
 
 auto_apply_and_reload_shell() {
-  # ВАЖНО:
-  # Скрипт обычно запускают как: curl ... | bash
-  # Значит он выполняется в bash, и НЕЛЬЗЯ source ~/.zshrc из bash.
 
-  log ""
-  ok "Apply now (copy one line):"
+  info "Applying TriAngels terminal now..."
 
-  if [[ -n "${ZSH_VERSION:-}" ]]; then
-    # Если скрипт реально выполняется в zsh — можно source .zshrc
-    echo "source ~/.zshrc"
-    [[ -f "$ZSHRC" ]] && source "$ZSHRC" 2>/dev/null || true
-    return 0
+  # Detect real login shell from passwd
+  real_shell="$(dscl . -read /Users/$USER UserShell 2>/dev/null | awk '{print $2}')"
+
+  if [[ -z "$real_shell" ]]; then
+      real_shell="${SHELL:-/bin/zsh}"
   fi
 
-  if [[ -n "${BASH_VERSION:-}" ]]; then
-    # Скрипт выполняется в bash — source только bashrc
-    if [[ -f "$BASHRC" ]]; then
-      echo "source ~/.bashrc"
-      source "$BASHRC" 2>/dev/null || true
-    else
-      # bashrc нет — не трогаем zshrc, просто даём правильную команду
-      echo "exec \$SHELL -l"
-    fi
-    return 0
-  fi
-
-  # На всякий случай
-  echo "exec \$SHELL -l"
+  case "$(basename "$real_shell")" in
+      zsh)
+          exec /bin/zsh -l
+          ;;
+      bash)
+          exec /bin/bash -l
+          ;;
+      *)
+          exec "$real_shell" -l
+          ;;
+  esac
 }
 
 main() {

@@ -2,6 +2,33 @@
 
 Единый профессиональный терминал для всей инфраструктуры TriAngels.
 
+## 🎯 Зачем это нужно
+
+TriAngels строит распределённую инфраструктуру.
+
+Когда каждый сервер, NAS и ноутбук
+имеет единый терминальный стандарт:
+
+- инженеры не путаются
+
+- партнёры быстрее обучаются
+
+- инфраструктура становится масштабируемой
+
+Это DevOps-фундамент экосистемы.
+
+## 🧩 Поддерживаемые платформы
+
+macOS Intel
+
+macOS Apple Silicon (M1/M2/M3)
+
+Linux x86_64
+
+Linux ARM64
+
+WSL (через Ubuntu)
+
 Работает на:
 
 ✅ iMac / MacBook  
@@ -69,9 +96,22 @@
 Одна команда:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Aleks250483/triangels-universal-terminal/main/setup-triangels-universal.sh | bash && exec $SHELL -l
+curl -fsSL https://raw.githubusercontent.com/Aleks250483/triangels-universal-terminal/main/setup-triangels-universal.sh | bash
 ```
+После установки пользователь увидит:
+
+source ~/.zshrc
+
 Готово ✅
+
+## 🔁 Авто-применение (опционально)
+
+Если хотите, чтобы терминал применился автоматически
+(только в интерактивной сессии):
+
+```bash
+TRIANGELS_AUTO_APPLY=1 curl -fsSL https://raw.githubusercontent.com/Aleks250483/triangels-universal-terminal/main/setup-triangels-universal.sh | bash
+```
 
 ## 🔄 Обновление
 
@@ -89,9 +129,13 @@ curl -fsSL https://raw.githubusercontent.com/Aleks250483/triangels-universal-ter
 
 Удалить оформление:
 
-==============================
-rm -f ~/.config/starship.toml
-==============================
+=======================================================
+# Remove TriAngels block from rc files
+awk -v b='# >>> TRIANGELS_TERMINAL_STANDARD >>>' \
+    -v e='# <<< TRIANGELS_TERMINAL_STANDARD <<<' \
+    '$0==b{in=1;next} $0==e{in=0;next} !in{print}' \
+    ~/.zshrc > ~/.zshrc.tmp && mv ~/.zshrc.tmp ~/.zshrc
+=======================================================
 
 
 При необходимости восстановите файлы:
@@ -131,11 +175,11 @@ chmod +x setup-triangels-universal.sh
 
 ## 🎨 Цветовая логика TriAngels
 
-## Тип устройства    Цвет
-    macOS            🔵 Синий
-    Linux VPS        🟢 Зелёный
-    root             🔴 Красный
-    Docker           🐳 Голубой
+##  Тип устройства        Цвет
+    macOS                🔵 Синий
+    Linux VPS            🟢 Зелёный
+    root                 🔴 Красный
+    Docker               🐳 Голубой
 
 ## 🌐 Зачем это нужно
 
@@ -156,5 +200,5 @@ TriAngels строит собственную инфраструктуру.
 
 ## 📦 Версия
 
-TriAngels Terminal Standard v1.0
-Infrastructure Bootstrap Edition
+TriAngels Universal Terminal Standard v1.2
+Production Edition

@@ -235,7 +235,7 @@ install_starship_macos_no_brew() {
   info "Source: $url"
 
   tmpdir="$(mktemp -d)"
-  trap 'rm -rf "$tmpdir"' EXIT
+  trap '[[ -n "${tmpdir:-}" ]] && rm -rf "$tmpdir"' EXIT
 
   curl -fsSL "$url" -o "$tmpdir/starship.tgz"
   tar -xzf "$tmpdir/starship.tgz" -C "$tmpdir"

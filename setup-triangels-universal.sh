@@ -7,7 +7,7 @@ set -euo pipefail
 # - Dependency checks (curl)
 # - curl install via package manager (Linux) with sudo
 # - Starship install:
-#     - macOS: brew (optionally auto-install with TRIANGELS_AUTO_BREW=1)
+#     - macOS: GitHub release install to ~/.local/bin (no Homebrew)
 #     - Linux: official script to ~/.local/bin (no root required)
 # - Backups (starship.toml + rc files)
 # - Marker blocks in rc files for clean updates/removal
@@ -23,7 +23,25 @@ STARSHIP_TOML="${HOME}/.config/starship.toml"
 BASHRC="${HOME}/.bashrc"
 ZSHRC="${HOME}/.zshrc"
 
-OS_TYPE="$(uname -s || true)"
+
+OS_RAW="$(uname -s 2>/dev/null || echo unknown)"
+OS_TYPE="$OS_RAW"
+
+is_macos=false
+is_linux=false
+is_wsl=false
+is_windows=false
+
+case "$OS_RAW" in
+  Darwin) is_macos=true ;;
+  Linux)  is_linux=true ;;
+  MINGW*|MSYS*|CYGWIN*) is_windows=true ;;
+esac
+
+# WSL detection (still Linux)
+if [[ "$is_linux" == true ]] && grep -qiE "(microsoft|wsl)" /proc/version 2>/dev/null; then
+  is_wsl=true
+fi
 USER_NAME="$(id -un 2>/dev/null || whoami)"
 IS_ROOT=false
 [[ "${EUID:-$(id -u)}" -eq 0 ]] && IS_ROOT=true
@@ -194,22 +212,43 @@ install_curl_linux() {
   have curl || die "curl install attempted but curl still not available."
   ok "curl installed."
 }
+arch_starship_unix() {
+  local arch
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64) echo "x86_64" ;;
+    arm64|aarch64) echo "aarch64" ;;
+    *) die "Unsupported CPU arch: $arch" ;;
+  esac
+}
 
-install_homebrew_mac() {
-  # Optional auto-install for wow-experience.
-  # Will require sudo + ENTER; still “one command”, but interactive.
-  info "Homebrew not found. Installing Homebrew (interactive; may ask password / press ENTER)."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+install_starship_macos_no_brew() {
+  have curl || die "curl not found. Please install curl and re-run."
 
-  # Ensure brew available in current session (Apple Silicon default path)
-  if [[ -x /opt/homebrew/bin/brew ]]; then
-    eval "$(/opt/homebrew/bin/brew shellenv)"
-  elif [[ -x /usr/local/bin/brew ]]; then
-    eval "$(/usr/local/bin/brew shellenv)"
-  fi
+  mkdir -p "$STARSHIP_BIN_DIR_DEFAULT"
 
-  have brew || die "Homebrew install finished but brew not found. Open new terminal and re-run."
-  ok "Homebrew installed."
+  local arch url tmpdir
+  arch="$(arch_starship_unix)"
+  url="https://github.com/starship/starship/releases/latest/download/starship-${arch}-apple-darwin.tar.gz"
+
+  info "Installing Starship (macOS, no Homebrew) into: $STARSHIP_BIN_DIR_DEFAULT"
+  info "Source: $url"
+
+  tmpdir="$(mktemp -d)"
+  trap 'rm -rf "$tmpdir"' EXIT
+
+  curl -fsSL "$url" -o "$tmpdir/starship.tgz"
+  tar -xzf "$tmpdir/starship.tgz" -C "$tmpdir"
+
+  [[ -f "$tmpdir/starship" ]] || die "Starship binary not found after extracting archive."
+
+  install -m 0755 "$tmpdir/starship" "$STARSHIP_BIN_DIR_DEFAULT/starship"
+
+  # Ensure current session sees it
+  export PATH="$STARSHIP_BIN_DIR_DEFAULT:$PATH"
+
+  have starship || die "Starship installed but not found in PATH."
+  ok "Starship installed (macOS)."
 }
 
 install_starship() {
@@ -220,19 +259,18 @@ install_starship() {
 
   info "Starship not found. Installing..."
 
-  if [[ "$OS_TYPE" == "Darwin" ]]; then
-    if ! have brew; then
-      if [[ "${TRIANGELS_AUTO_BREW:-0}" == "1" ]]; then
-        install_homebrew_mac
-      else
-        die "Homebrew not found. Install Homebrew, then re-run. (Or run with TRIANGELS_AUTO_BREW=1 to auto-install.)"
-      fi
-    fi
-
-    brew install starship
-    have starship || die "Starship install via brew failed."
-    ok "Starship installed via Homebrew."
+    # macOS – NO brew
+  if [[ "$is_macos" == true ]]; then
+    install_starship_macos_no_brew
     return 0
+  fi
+
+  # Windows (best-effort) – stop with clear message for now
+  if [[ "$is_windows" == true ]]; then
+    err "Windows shell detected (MSYS/MINGW/CYGWIN)."
+    log "✅ Recommended: run this installer inside WSL (Ubuntu) for full support."
+    log "   Install WSL → open Ubuntu → run the same install command."
+    exit 2
   fi
 
   # Linux install via official script into ~/.local/bin (no root)
@@ -310,32 +348,21 @@ attach_to_shells() {
   # Always create + attach to CURRENT shell rc for wow-effect
   case "$current_shell" in
     zsh)
-      ensure_marker_block "$ZSHRC" "zsh" ""
+      ensure_marker_block "$ZSHRC" "zsh" "$STARSHIP_BIN_DIR_DEFAULT"
       ;;
     bash)
-      ensure_marker_block "$BASHRC" "bash" ""
+      ensure_marker_block "$BASHRC" "bash" "$STARSHIP_BIN_DIR_DEFAULT"
       ;;
   esac
 
   # Also attach to the other shell if it exists (nice-to-have)
   if [[ "$current_shell" != "bash" && -f "$BASHRC" ]]; then
-    ensure_marker_block "$BASHRC" "bash" ""
+    ensure_marker_block "$BASHRC" "bash" "$STARSHIP_BIN_DIR_DEFAULT"
   fi
   if [[ "$current_shell" != "zsh" && -f "$ZSHRC" ]]; then
-    ensure_marker_block "$ZSHRC" "zsh" ""
+    ensure_marker_block "$ZSHRC" "zsh" "$STARSHIP_BIN_DIR_DEFAULT"
   fi
 
-  # On Linux we installed to ~/.local/bin: make sure that shell gets PATH fix
-  if [[ "$OS_TYPE" != "Darwin" ]]; then
-    # Re-apply with bin dir for both files that exist / were created
-    if [[ "$current_shell" == "zsh" ]]; then
-      remove_marker_block "$ZSHRC"
-      ensure_marker_block "$ZSHRC" "zsh" "$STARSHIP_BIN_DIR_DEFAULT"
-    else
-      remove_marker_block "$BASHRC"
-      ensure_marker_block "$BASHRC" "bash" "$STARSHIP_BIN_DIR_DEFAULT"
-    fi
-  fi
 }
 
 print_summary() {
@@ -356,6 +383,8 @@ print_summary() {
   log ""
   log "✅ Apply now (copy one line):"
   log "  ${apply_cmd}"
+  log "✅ Optional auto-apply (interactive only):"
+  log "  TRIANGELS_AUTO_APPLY=1 bash setup-triangels-universal.sh"
   log ""
   log "Config files:"
   log "  • Starship config: $STARSHIP_TOML"
@@ -370,23 +399,25 @@ print_summary() {
 }
 
 auto_apply_and_reload_shell() {
+  local current_shell apply_cmd
 
-  info "Applying TriAngels terminal now..."
+  # Only auto-apply if explicitly requested
+  if [[ "${TRIANGELS_AUTO_APPLY:-0}" != "1" ]]; then
+    return 0
+  fi
 
- # Use current login shell safely
-real_shell="${SHELL:-/bin/zsh}"
+  # Only in interactive TTY
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    warn "TRIANGELS_AUTO_APPLY=1 set, but no interactive TTY detected. Skipping auto-apply."
+    return 0
+  fi
 
-  case "$(basename "$real_shell")" in
-      zsh)
-          exec /bin/zsh -l
-          ;;
-      bash)
-          exec /bin/bash -l
-          ;;
-      *)
-          exec "$real_shell" -l
-          ;;
-  esac
+  current_shell="$(detect_shell)"
+  apply_cmd="source ~/.${current_shell}rc"
+
+  info "Auto-apply enabled (TRIANGELS_AUTO_APPLY=1). Applying now..."
+  # shellcheck disable=SC1090
+  eval "$apply_cmd" || warn "Auto-apply failed. Please run: $apply_cmd"
 }
 
 main() {

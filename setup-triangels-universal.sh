@@ -156,7 +156,11 @@ ensure_marker_block() {
     printf "# Added on: %s\n" "$(date)"
     if [[ -n "$bin_dir" ]]; then
       printf "# Ensure Starship is in PATH\n"
-      printf 'export PATH="%s:$PATH"\n' "$bin_dir"
+      if [[ "$bin_dir" == "$HOME/.local/bin" ]]; then
+        printf 'export PATH="$HOME/.local/bin:$PATH"\n'
+      else
+        printf 'export PATH="%s:$PATH"\n' "$bin_dir"
+      fi
     fi
     printf 'eval "$(starship init %s)"\n' "$shell"
     printf "%s\n" "$MARK_END"
@@ -245,17 +249,31 @@ install_starship_macos_no_brew() {
   install -m 0755 "$tmpdir/starship" "$STARSHIP_BIN_DIR_DEFAULT/starship"
 
   # Ensure current session sees it
-  export PATH="$STARSHIP_BIN_DIR_DEFAULT:$PATH"
+  case ":$PATH:" in
+    *":$STARSHIP_BIN_DIR_DEFAULT:"*) ;;
+    *) export PATH="$STARSHIP_BIN_DIR_DEFAULT:$PATH" ;;
+  esac
 
   have starship || die "Starship installed but not found in PATH."
+  ok "Starship path: $(command -v starship)"
+  ok "Starship version: $(starship --version)"
+
   ok "Starship installed (macOS)."
 }
 
 install_starship() {
-  if have starship; then
-    ok "Starship already installed."
-    return 0
-  fi
+  # Check if starship binary exists in user-local bin (even if PATH not yet loaded)
+if [[ -x "$STARSHIP_BIN_DIR_DEFAULT/starship" ]]; then
+  case ":$PATH:" in
+    *":$STARSHIP_BIN_DIR_DEFAULT:"*) ;;
+    *) export PATH="$STARSHIP_BIN_DIR_DEFAULT:$PATH" ;;
+  esac
+fi
+
+if have starship; then
+  ok "Starship already installed."
+  return 0
+fi
 
   info "Starship not found. Installing..."
 
@@ -281,8 +299,16 @@ install_starship() {
   curl -fsSL https://starship.rs/install.sh | sh -s -- -y -b "$STARSHIP_BIN_DIR_DEFAULT"
 
   # Ensure current process can see it
-  export PATH="$STARSHIP_BIN_DIR_DEFAULT:$PATH"
+  case ":$PATH:" in
+    *":$STARSHIP_BIN_DIR_DEFAULT:"*) ;;
+    *) export PATH="$STARSHIP_BIN_DIR_DEFAULT:$PATH" ;;
+  esac
+  
   have starship || die "Starship installer finished but starship not found in PATH."
+  
+  ok "Starship path: $(command -v starship)"
+  ok "Starship version: $(starship --version)"
+  
   ok "Starship installed."
 }
 
